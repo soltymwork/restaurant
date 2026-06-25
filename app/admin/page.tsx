@@ -5,6 +5,90 @@ import { useCms } from '@/components/CmsProvider';
 import { menuCategories } from '@/lib/cms-data';
 import Link from 'next/link';
 
+interface ImageUploadProps {
+  currentUrl: string;
+  onUploadSuccess: (url: string) => void;
+  label?: string;
+}
+
+function ImageUpload({ currentUrl, onUploadSuccess, label }: ImageUploadProps) {
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        const result = await res.json();
+        onUploadSuccess(result.url);
+      } else {
+        alert('Upload zlyhal.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Upload zlyhal.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {label && <label className="block text-xs font-semibold uppercase tracking-wider text-white/50">{label}</label>}
+      <div className="flex items-center gap-4 bg-[#252525] p-3 rounded border border-white/5">
+        <div className="relative w-16 h-16 bg-neutral-900 border border-white/10 overflow-hidden rounded flex-shrink-0 flex items-center justify-center">
+          {currentUrl ? (
+            <img src={currentUrl} alt="Preview" className="object-cover w-full h-full" />
+          ) : (
+            <span className="text-[10px] text-white/30 font-sans">Bez foto</span>
+          )}
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+              <span className="text-[9px] text-white font-semibold font-sans animate-pulse">Nahráva sa...</span>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 space-y-2">
+          <input 
+            type="text"
+            value={currentUrl}
+            onChange={(e) => onUploadSuccess(e.target.value)}
+            placeholder="URL adresa obrázku alebo nahrajte súbor"
+            className="w-full bg-[#1c1c1c] border border-white/10 px-3 py-1.5 text-white text-xs font-sans rounded focus:outline-none focus:border-white/30"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="px-3 py-1 bg-white/10 hover:bg-white/20 disabled:bg-white/5 text-[10px] font-sans font-semibold uppercase tracking-wider text-white/90 rounded border border-white/5 transition-colors"
+            >
+              Vybrať súbor (Upload)
+            </button>
+            <input 
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*"
+              className="hidden"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { data, updateData, resetToDefault } = useCms();
   
@@ -372,27 +456,49 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-white/80 mt-6 mb-4">Galéria a Parallax Obrázky na Pozadí (Adresy fotiek)</h3>
-                  <div className="space-y-4">
+                  <div className="flex justify-between items-center mt-6 mb-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-white/80">Galéria a Parallax Obrázky na Pozadí</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHomeHero({ ...homeHero, images: [...homeHero.images, ''] });
+                      }}
+                      className="px-3 py-1.5 border border-white/20 hover:border-white text-[10px] font-semibold uppercase tracking-wider font-sans transition-colors"
+                    >
+                      + Pridať obrázok
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {homeHero.images.map((img, idx) => (
-                      <div key={idx} className="flex gap-4 items-center">
-                        <span className="text-xs font-mono text-white/40 w-6">#{idx+1}</span>
-                        <input 
-                          type="text"
-                          value={img}
-                          onChange={(e) => {
+                      <div key={idx} className="bg-[#202020] p-4 rounded border border-white/5 relative">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-white/50">Obrázok #{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newImgs = homeHero.images.filter((_, i) => i !== idx);
+                              setHomeHero({ ...homeHero, images: newImgs });
+                            }}
+                            className="text-red-400 hover:text-red-300 text-[10px] uppercase font-bold font-sans transition-colors"
+                          >
+                            Odstrániť
+                          </button>
+                        </div>
+                        <ImageUpload
+                          currentUrl={img}
+                          onUploadSuccess={(url) => {
                             const newImgs = [...homeHero.images];
-                            newImgs[idx] = e.target.value;
+                            newImgs[idx] = url;
                             setHomeHero({ ...homeHero, images: newImgs });
                           }}
-                          className="flex-1 bg-[#252525] border border-white/10 px-4 py-2.5 text-white focus:outline-none focus:border-white/40 transition-colors text-sm font-sans"
-                          placeholder="Unsplash URL adresa fotky"
                         />
-                        <div className="relative w-10 h-10 border border-white/10 overflow-hidden bg-neutral-900 flex-shrink-0">
-                          {img && <img src={img} alt="" className="object-cover w-full h-full" />}
-                        </div>
                       </div>
                     ))}
+                    {homeHero.images.length === 0 && (
+                      <div className="col-span-2 text-center py-8 text-white/40 text-xs border border-dashed border-white/10 rounded">
+                        Zatiaľ žiadne obrázky v galérii. Kliknite na "+ Pridať obrázok" hore.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -464,47 +570,35 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-white/80">Obrázky Sekcie O nás</h3>
+                <div className="space-y-6 pt-6 border-t border-white/10">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-white/80">Obrázky Sekcie O nás</h3>
                   
-                  <div>
-                    <label className="block text-xs text-white/40 mb-1">Foto Interiéru</label>
-                    <input 
-                      type="text"
-                      value={aboutData.images.interior1}
-                      onChange={(e) => setAboutData({ 
-                        ...aboutData, 
-                        images: { ...aboutData.images, interior1: e.target.value } 
-                      })}
-                      className="w-full bg-[#252525] border border-white/10 px-4 py-2.5 text-white text-sm font-sans"
-                    />
-                  </div>
+                  <ImageUpload
+                    label="Foto Interiéru"
+                    currentUrl={aboutData.images.interior1}
+                    onUploadSuccess={(url) => setAboutData({
+                      ...aboutData,
+                      images: { ...aboutData.images, interior1: url }
+                    })}
+                  />
 
-                  <div>
-                    <label className="block text-xs text-white/40 mb-1">Foto Šéfkuchára (Hlavná)</label>
-                    <input 
-                      type="text"
-                      value={aboutData.images.chefMain}
-                      onChange={(e) => setAboutData({ 
-                        ...aboutData, 
-                        images: { ...aboutData.images, chefMain: e.target.value } 
-                      })}
-                      className="w-full bg-[#252525] border border-white/10 px-4 py-2.5 text-white text-sm font-sans"
-                    />
-                  </div>
+                  <ImageUpload
+                    label="Foto Šéfkuchára (Hlavná)"
+                    currentUrl={aboutData.images.chefMain}
+                    onUploadSuccess={(url) => setAboutData({
+                      ...aboutData,
+                      images: { ...aboutData.images, chefMain: url }
+                    })}
+                  />
 
-                  <div>
-                    <label className="block text-xs text-white/40 mb-1">Doplnková Prekrývacia Foto</label>
-                    <input 
-                      type="text"
-                      value={aboutData.images.chefOverlay}
-                      onChange={(e) => setAboutData({ 
-                        ...aboutData, 
-                        images: { ...aboutData.images, chefOverlay: e.target.value } 
-                      })}
-                      className="w-full bg-[#252525] border border-white/10 px-4 py-2.5 text-white text-sm font-sans"
-                    />
-                  </div>
+                  <ImageUpload
+                    label="Doplnková Prekrývacia Foto"
+                    currentUrl={aboutData.images.chefOverlay}
+                    onUploadSuccess={(url) => setAboutData({
+                      ...aboutData,
+                      images: { ...aboutData.images, chefOverlay: url }
+                    })}
+                  />
                 </div>
               </div>
             )}
@@ -619,23 +713,19 @@ export default function AdminPage() {
                           <div key={itemIdx} className="bg-[#202020] border border-white/5 p-6 rounded-lg space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <label className="block text-xs text-white/40 mb-1">Dátum</label>
+                                <label className="block text-xs text-white/40 mb-2">Dátum</label>
                                 <input 
                                   type="text"
                                   value={item.date}
                                   onChange={(e) => handleEditNewsItem(yearIdx, itemIdx, 'date', e.target.value)}
-                                  className="w-full bg-[#1c1c1c] border border-white/10 px-3 py-2 text-white text-sm font-sans"
+                                  className="w-full bg-[#1c1c1c] border border-white/10 px-3 py-3 text-white focus:outline-none focus:border-white/30 text-sm font-sans rounded"
                                 />
                               </div>
-                              <div>
-                                <label className="block text-xs text-white/40 mb-1">Adresa obrázku (Foto novinky)</label>
-                                <input 
-                                  type="text"
-                                  value={item.image}
-                                  onChange={(e) => handleEditNewsItem(yearIdx, itemIdx, 'image', e.target.value)}
-                                  className="w-full bg-[#1c1c1c] border border-white/10 px-3 py-2 text-white text-sm font-sans"
-                                />
-                              </div>
+                              <ImageUpload
+                                label="Foto novinky"
+                                currentUrl={item.image}
+                                onUploadSuccess={(url) => handleEditNewsItem(yearIdx, itemIdx, 'image', url)}
+                              />
                             </div>
 
                             <div>
